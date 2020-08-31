@@ -56,8 +56,9 @@ class Classify(object):
         
         if epoch - self.opt.save_every >= 0:
             old_classifier_filename = f'C_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}.pth'
+            old_classifier_filepath = os.path.join(self.opt.save_path, old_classifier_filename)
 
-            os.remove(old_classifier_filename)
+            os.remove(old_classifier_filepath)
 
         torch.save(self.classifier.state_dict(), classifier_filepath)
 
@@ -189,8 +190,8 @@ class Classify(object):
 
 
 def train():
-    genre_group = 2
-    continue_training = True
+    genre_group = 1
+    continue_training = False
     opt = ClassifierConfig(genre_group, continue_training)
     classifiy = Classify(opt, 'gpu')
     classifiy.train()

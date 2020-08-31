@@ -818,15 +818,10 @@ def load_model_test():
     print(params2['cnet1.1.weight'])
 
 
-def remove_dir_test():
-    path = 'D:/checkpoints/steely_gan/base'
-    shutil.rmtree(path)
-
-
 def train():
-    continue_train = False
+    continue_train = True
     device = 'GPU'
-    opt = CyganConfig('SMGT', 2, continue_train)
+    opt = CyganConfig('steely_gan', 3, continue_train)
     cyclegan = CycleGAN(opt, device)
     cyclegan.train()
 

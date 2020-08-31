@@ -78,7 +78,7 @@ class CyganConfig(object):
         self.no_flip = True
         self.num_threads = 0
         self.batch_size = 8
-        self.max_epoch = 21
+        self.max_epoch = 20
         self.epoch_step = 5
 
         self.data_shape = (self.batch_size, 1, 64, 84)
