@@ -46,7 +46,7 @@ class CycleGAN(object):
             import torch_xla.core.xla_model as xm
             self.device = xm.xla_device()
         else:
-            self.device = torch.device('cuda')
+            self.device = torch.device('cuda:0')
         self.pool = ImagePool(self.opt.image_pool_max_size)
 
         self.set_up_terminal_logger()
@@ -339,17 +339,14 @@ class CycleGAN(object):
                         fake_B_copy = copy.copy(fake_B.detach())
                         fake_A_copy = copy.copy(fake_A.detach())
                     else:
-                        fake_B_copy = copy.copy(fake_B)
-                        fake_A_copy = copy.copy(fake_A)
+                        fake_B_copy = fake_B.detach().clone()
+                        fake_A_copy = fake_A.detach().clone()
 
                     gaussian_noise = torch.abs(torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
                                                             std=self.opt.gaussian_std).to(self.device,
                                                                                           dtype=torch.float))
-                    DA_real = self.discriminator_A(real_A + gaussian_noise)
-                    DB_real = self.discriminator_B(real_B + gaussian_noise)
-
-                    DB_fake = self.discriminator_B(fake_B_copy + gaussian_noise)
-                    DA_fake = self.discriminator_A(fake_A_copy + gaussian_noise)
+                    DB_fake = self.discriminator_B(fake_B + gaussian_noise)
+                    DA_fake = self.discriminator_A(fake_A + gaussian_noise)
 
                     loss_G_A2B = criterionGAN(DB_fake, True)
                     loss_G_B2A = criterionGAN(DA_fake, True)
@@ -402,6 +399,9 @@ class CycleGAN(object):
                     ######################
                     # Discriminator
                     ######################
+
+                    DA_real = self.discriminator_A(real_A + gaussian_noise)
+                    DB_real = self.discriminator_B(real_B + gaussian_noise)
 
                     # loss_real
 
