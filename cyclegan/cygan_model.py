@@ -129,9 +129,9 @@ class CycleGAN(object):
                                                      betas=(self.opt.beta1, self.opt.beta2),
                                                      weight_decay=self.opt.weight_decay)
 
-            self.DA_all_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.DA_all_optimizer, T_0=1, T_mult=2,
+            self.DA_all_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.DA_all_optimizer, T_0=2, T_mult=2,
                                                                              eta_min=4e-08)
-            self.DB_all_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.DB_all_optimizer, T_0=1, T_mult=2,
+            self.DB_all_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.DB_all_optimizer, T_0=2, T_mult=2,
                                                                              eta_min=4e-08)
 
     def find_latest_checkpoint(self):
@@ -174,7 +174,7 @@ class CycleGAN(object):
             self.discriminator_A_all.load_state_dict(torch.load(D_A_all_path))
             self.discriminator_B_all.load_state_dict(torch.load(D_B_all_path))
 
-        print(f'Loaded model from epoch {self.opt.start_epoch - 1}')
+        print(f'Loaded {self.opt.name} model from epoch {self.opt.start_epoch - 1}')
 
     def reset_save(self):
         pass
@@ -342,18 +342,13 @@ class CycleGAN(object):
                         fake_B_copy = copy.copy(fake_B)
                         fake_A_copy = copy.copy(fake_A)
 
-                    gaussian_noise = torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
-                                                  std=self.opt.gaussian_std).to(self.device, dtype=torch.float)
+                    gaussian_noise = torch.abs(torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
+                                                            std=self.opt.gaussian_std).to(self.device,
+                                                                                          dtype=torch.float))
                     DA_real = self.discriminator_A(real_A + gaussian_noise)
-                    gaussian_noise = torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
-                                                  std=self.opt.gaussian_std).to(self.device, dtype=torch.float)
                     DB_real = self.discriminator_B(real_B + gaussian_noise)
 
-                    gaussian_noise = torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
-                                                  std=self.opt.gaussian_std).to(self.device, dtype=torch.float)
                     DB_fake = self.discriminator_B(fake_B_copy + gaussian_noise)
-                    gaussian_noise = torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
-                                                  std=self.opt.gaussian_std).to(self.device, dtype=torch.float)
                     DA_fake = self.discriminator_A(fake_A_copy + gaussian_noise)
 
                     loss_G_A2B = criterionGAN(DB_fake, True)
@@ -380,16 +375,14 @@ class CycleGAN(object):
 
                     loss_idt = loss_idt_A + loss_idt_B
 
-                    loss_A2B = loss_G_A2B + loss_cycle_A2B + loss_idt_A
-                    loss_B2A = loss_G_B2A + loss_cycle_B2A + loss_idt_B
-
                     self.GA2B_optimizer.zero_grad()
-                    self.GB2A_optimizer.zero_grad()
-
+                    loss_A2B = loss_G_A2B + loss_cycle_A2B + loss_idt_A
                     loss_A2B.backward(retain_graph=True)
-                    loss_B2A.backward(retain_graph=True)
-
                     self.GA2B_optimizer.step()
+
+                    self.GB2A_optimizer.zero_grad()
+                    loss_B2A = loss_G_B2A + loss_cycle_B2A + loss_idt_B
+                    loss_B2A.backward(retain_graph=True)
                     self.GB2A_optimizer.step()
 
                     cycle_loss = loss_cycle_A2B + loss_cycle_B2A
@@ -401,6 +394,7 @@ class CycleGAN(object):
                     ######################
                     # Sample
                     ######################
+
                     fake_A_sample, fake_B_sample = (None, None)
                     if self.opt.use_image_pool:
                         [fake_A_sample, fake_B_sample] = self.pool([fake_A_copy, fake_B_copy])
@@ -416,11 +410,8 @@ class CycleGAN(object):
 
                     # loss fake
                     if self.opt.use_image_pool:
-                        gaussian_noise = torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
-                                                      std=self.opt.gaussian_std).to(self.device, dtype=torch.float)
+
                         DA_fake_sample = self.discriminator_A(fake_A_sample + gaussian_noise)
-                        gaussian_noise = torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
-                                                      std=self.opt.gaussian_std).to(self.device, dtype=torch.float)
                         DB_fake_sample = self.discriminator_B(fake_B_sample + gaussian_noise)
 
                         loss_DA_fake = criterionGAN(DA_fake_sample, False)
@@ -430,17 +421,14 @@ class CycleGAN(object):
                         loss_DA_fake = criterionGAN(DA_fake, False)
                         loss_DB_fake = criterionGAN(DB_fake, False)
 
-                    loss_DA = (loss_DA_real + loss_DA_fake) * 0.5
-                    loss_DB = (loss_DB_real + loss_DB_fake) * 0.5
-
-                    # loss and backward
                     self.DA_optimizer.zero_grad()
-                    self.DB_optimizer.zero_grad()
-
+                    loss_DA = (loss_DA_real + loss_DA_fake) * 0.5
                     loss_DA.backward()
-                    loss_DB.backward()
-
                     self.DA_optimizer.step()
+
+                    self.DB_optimizer.zero_grad()
+                    loss_DB = (loss_DB_real + loss_DB_fake) * 0.5
+                    loss_DB.backward()
                     self.DB_optimizer.step()
 
                     loss_D = loss_DA + loss_DB
@@ -708,8 +696,8 @@ class CycleGAN(object):
         # Load Classifier
         ######################
 
-        classify_opt = ClassifierConfig(self.opt.genre_group)
-        classify_model = Classify(classify_opt)
+        classify_opt = ClassifierConfig(self.opt.genre_group, True)
+        classify_model = Classify(classify_opt, 'gpu')
         classify_model.continue_from_latest_checkpoint()
 
         classifier = classify_model.classifier
@@ -819,16 +807,18 @@ def load_model_test():
 
 
 def train():
-    continue_train = True
+    continue_train = False
     device = 'GPU'
-    opt = CyganConfig('steely_gan', 3, continue_train)
+    opt = CyganConfig('steely_gan', 2, continue_train)
     cyclegan = CycleGAN(opt, device)
     cyclegan.train()
 
 
 def test():
-    opt = CyganConfig('SMGT', 1)
-    cyclegan = CycleGAN(opt)
+    continue_train = False
+    device = 'GPU'
+    opt = CyganConfig('steely_gan', 2, continue_train)
+    cyclegan = CycleGAN(opt, device)
     cyclegan.test_by_using_classifier()
 
 

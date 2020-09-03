@@ -46,7 +46,9 @@ class Classify(object):
                                          betas=(self.opt.beta1, self.opt.beta2),
                                          weight_decay=self.opt.weight_decay)
 
-        self.classifier_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.classifier_optimizer, T_0=1, T_mult=2, eta_min=4e-08)
+        # self.classifier_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.classifier_optimizer, T_0=2, T_mult=2, eta_min=4e-08)
+        self.classifier_scheduler = lr_scheduler.MultiStepLR(self.classifier_optimizer,
+                                                             milestones=[20, 25, 30, 45], gamma=0.5)
 
     def save_model(self, epoch):
         classifier_filename = f'C_{self.opt.genreA}_{self.opt.genreB}_{epoch}.pth'
@@ -66,7 +68,7 @@ class Classify(object):
 
     def find_latest_checkpoint(self):
         path = self.opt.save_path
-        pattern = rf'C_{self.opt.genreA}_{self.opt.genreB}_\d+_.pth$'
+        pattern = rf'C_{self.opt.genreA}_{self.opt.genreB}_\d+.pth$'
         file_list = os.listdir(path)
         files = []
         for file in file_list:
@@ -191,7 +193,7 @@ class Classify(object):
 
 def train():
     genre_group = 1
-    continue_training = False
+    continue_training = True
     opt = ClassifierConfig(genre_group, continue_training)
     classifiy = Classify(opt, 'gpu')
     classifiy.train()

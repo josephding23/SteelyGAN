@@ -43,7 +43,7 @@ class ClassifierConfig(object):
 
         self.gaussian_std = 1
 
-        self.sigma_c = 0.01
+        self.sigma_c = 1.0
         self.sigma_d = 1.0
 
         self.gpu = True
@@ -51,21 +51,21 @@ class ClassifierConfig(object):
         self.beta1 = 0.9                     # Adam optimizer beta1 & 2
         self.beta2 = 0.999
 
-        self.lr = 0.0002
+        self.lr = 0.0001
 
         self.weight_decay = 0.
 
         self.no_flip = True
-        self.num_threads = 0
-        self.batch_size = 32
-        self.max_epoch = 60
+        self.num_threads = 2
+        self.batch_size = 8
+        self.max_epoch = 50
         self.epoch_step = 5
 
         self.data_shape = (self.batch_size, 1, 64, 84)
         self.input_shape = (1, 64, 84)
 
         self.plot_every = 200                # iterations
-        self.save_every = 5                  # epochs
+        self.save_every = 1                  # epochs
 
         self.start_epoch = 0
 
@@ -85,6 +85,6 @@ class ClassifierConfig(object):
 
 
 if __name__ == '__main__':
-    config = Config()
+    config = ClassifierConfig()
     print(config.save_path)
 

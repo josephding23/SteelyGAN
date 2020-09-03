@@ -76,7 +76,7 @@ class CyganConfig(object):
         self.weight_decay = 0.0
 
         self.no_flip = True
-        self.num_threads = 0
+        self.num_threads = 2
         self.batch_size = 8
         self.max_epoch = 20
         self.epoch_step = 5
