@@ -51,13 +51,13 @@ class ClassifierConfig(object):
         self.beta1 = 0.9                     # Adam optimizer beta1 & 2
         self.beta2 = 0.999
 
-        self.lr = 0.0001
+        self.lr = 0.0002
 
         self.weight_decay = 0.
 
         self.no_flip = True
         self.num_threads = 2
-        self.batch_size = 8
+        self.batch_size = 32
         self.max_epoch = 50
         self.epoch_step = 5
 

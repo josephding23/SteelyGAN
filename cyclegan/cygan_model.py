@@ -342,9 +342,10 @@ class CycleGAN(object):
                         fake_B_copy = fake_B.detach().clone()
                         fake_A_copy = fake_A.detach().clone()
 
-                    gaussian_noise = torch.abs(torch.normal(mean=torch.zeros((batch_size, 1, 64, 84)),
-                                                            std=self.opt.gaussian_std).to(self.device,
-                                                                                          dtype=torch.float))
+                    gaussian_noise = torch.abs(torch.normal(
+                        mean=torch.zeros((batch_size, 1, 64, 84)),
+                        std=self.opt.gaussian_std).to(self.device, dtype=torch.float))
+
                     DB_fake = self.discriminator_B(fake_B + gaussian_noise)
                     DA_fake = self.discriminator_A(fake_A + gaussian_noise)
 
@@ -401,6 +402,7 @@ class CycleGAN(object):
                     ######################
 
                     DA_real = self.discriminator_A(real_A + gaussian_noise)
+
                     DB_real = self.discriminator_B(real_B + gaussian_noise)
 
                     # loss_real
@@ -797,6 +799,7 @@ def load_model_test():
     path2 = 'D:/checkpoints/steely_gan/models/steely_gan_netG_0.pth'
     generator1 = Generator()
     generator2 = Generator()
+
     generator1.load_state_dict(torch.load(path1))
     generator2.load_state_dict(torch.load(path2))
 
@@ -809,7 +812,7 @@ def load_model_test():
 def train():
     continue_train = False
     device = 'GPU'
-    opt = CyganConfig('steely_gan', 2, continue_train)
+    opt = CyganConfig('SMGT', 2, continue_train)
     cyclegan = CycleGAN(opt, device)
     cyclegan.train()
 

@@ -193,7 +193,7 @@ class Classify(object):
 
 def train():
     genre_group = 1
-    continue_training = True
+    continue_training = False
     opt = ClassifierConfig(genre_group, continue_training)
     classifiy = Classify(opt, 'gpu')
     classifiy.train()
