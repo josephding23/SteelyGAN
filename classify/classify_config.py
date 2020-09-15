@@ -48,7 +48,7 @@ class ClassifierConfig(object):
 
         self.gpu = True
 
-        self.beta1 = 0.9                     # Adam optimizer beta1 & 2
+        self.beta1 = 0.9                    # Adam optimizer beta1 & 2
         self.beta2 = 0.999
 
         self.lr = 0.0002
@@ -58,7 +58,7 @@ class ClassifierConfig(object):
         self.no_flip = True
         self.num_threads = 2
         self.batch_size = 32
-        self.max_epoch = 50
+        self.max_epoch = 64
         self.epoch_step = 5
 
         self.data_shape = (self.batch_size, 1, 64, 84)

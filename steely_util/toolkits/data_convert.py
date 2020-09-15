@@ -172,10 +172,10 @@ def generate_whole_midi_from_tensor(data, path):
     pm.write(path)
 
 
-def generate_data_from_midi(path):
+def generate_data_from_midi(path, segment_num):
     pm = pretty_midi.PrettyMIDI(path)
     note_range = (24, 108)
-    segment_num = math.ceil(pm.get_end_time() / 8)
+    # segment_num = math.ceil(pm.get_end_time() / 8)
     data = np.zeros(shape=(segment_num, 64, 84), dtype=np.float)
 
     # data = np.zeros((segment_num, 64, 84), np.bool_)

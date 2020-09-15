@@ -28,6 +28,8 @@ from steely_util.data.dataset import SteelyDataset, get_dataset
 from steely_util.toolkits.data_convert import generate_midi_segment_from_tensor, generate_data_from_midi, \
     generate_whole_midi_from_tensor
 from steely_util.image_pool import ImagePool
+from util.toolkits.data_convert import save_midis
+
 import logging
 import colorlog
 import json
@@ -159,10 +161,20 @@ class CycleGAN(object):
         D_A_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{latest_checked_epoch}_DA.pth'
         D_B_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{latest_checked_epoch}_DB.pth'
 
+        G_A2B_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{latest_checked_epoch}_GA2B_op.pth'
+        G_B2A_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{latest_checked_epoch}_GB2A_op.pth'
+        D_A_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{latest_checked_epoch}_DA_op.pth'
+        D_B_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{latest_checked_epoch}_DB_op.pth'
+
         self.generator_A2B.load_state_dict(torch.load(G_A2B_filepath))
         self.generator_B2A.load_state_dict(torch.load(G_B2A_filepath))
         self.discriminator_A.load_state_dict(torch.load(D_A_filepath))
         self.discriminator_B.load_state_dict(torch.load(D_B_filepath))
+
+        self.GA2B_optimizer.load_state_dict(torch.load(G_A2B_op_filepath))
+        self.GB2A_optimizer.load_state_dict(torch.load(G_B2A_op_filepath))
+        self.DA_optimizer.load_state_dict(torch.load(D_A_op_filepath))
+        self.DB_optimizer.load_state_dict(torch.load(D_B_op_filepath))
 
         if self.opt.model != 'base':
             D_A_all_filename = f'{self.opt.name}_D_A_all_{latest_checked_epoch}.pth'
@@ -174,7 +186,7 @@ class CycleGAN(object):
             self.discriminator_A_all.load_state_dict(torch.load(D_A_all_path))
             self.discriminator_B_all.load_state_dict(torch.load(D_B_all_path))
 
-        print(f'Loaded {self.opt.name} model from epoch {self.opt.start_epoch - 1}')
+        print(f'Loaded {self.opt.name}, {self.opt.genreA} ↔ {self.opt.genreB} model from epoch {self.opt.start_epoch - 1}')
 
     def reset_save(self):
         pass
@@ -215,21 +227,41 @@ class CycleGAN(object):
         D_A_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch}_DA.pth'
         D_B_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch}_DB.pth'
 
+        G_A2B_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch}_GA2B_op.pth'
+        G_B2A_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch}_GB2A_op.pth'
+        D_A_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch}_DA_op.pth'
+        D_B_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch}_DB_op.pth'
+
         if epoch - self.opt.save_every >= 0:
             old_G_A2B_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_GA2B.pth'
             old_G_B2A_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_GB2A.pth'
             old_D_A_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_DA.pth'
             old_D_B_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_DB.pth'
 
+            old_G_A2B_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_GA2B_op.pth'
+            old_G_B2A_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_GB2A_op.pth'
+            old_D_A_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_DA_op.pth'
+            old_D_B_op_filepath = check_path + f'{self.opt.name}_{self.opt.genreA}_{self.opt.genreB}_{epoch - self.opt.save_every}_DB_op.pth'
+
             os.remove(old_G_A2B_filepath)
             os.remove(old_G_B2A_filepath)
             os.remove(old_D_A_filepath)
             os.remove(old_D_B_filepath)
 
+            os.remove(old_G_A2B_op_filepath)
+            os.remove(old_G_B2A_op_filepath)
+            os.remove(old_D_A_op_filepath)
+            os.remove(old_D_B_op_filepath)
+
         torch.save(self.generator_A2B.state_dict(), G_A2B_filepath)
         torch.save(self.generator_B2A.state_dict(), G_B2A_filepath)
         torch.save(self.discriminator_A.state_dict(), D_A_filepath)
         torch.save(self.discriminator_B.state_dict(), D_B_filepath)
+
+        torch.save(self.GA2B_optimizer.state_dict(), G_A2B_op_filepath)
+        torch.save(self.GB2A_optimizer.state_dict(), G_B2A_op_filepath)
+        torch.save(self.DA_optimizer.state_dict(), D_A_op_filepath)
+        torch.save(self.DB_optimizer.state_dict(), D_B_op_filepath)
 
         if self.opt.model != 'base':
             D_A_all_filename = f'{self.opt.name}_D_A_all_{epoch}.pth'
@@ -281,6 +313,11 @@ class CycleGAN(object):
         ######################
         # Initiate
         ######################
+
+        self.generator_A2B.train()
+        self.generator_B2A.train()
+        self.discriminator_A.train()
+        self.discriminator_B.train()
 
         lambda_A = 10.0  # weight for cycle loss (A -> B -> A^)
         lambda_B = 10.0  # weight for cycle loss (B -> A -> B^)
@@ -673,6 +710,9 @@ class CycleGAN(object):
         # Test
         ######################
 
+        self.generator_A2B.eval()
+        self.generator_B2A.eval()
+
         for i, data in enumerate(loader):
             if self.opt.direction == 'AtoB':
                 origin = data[:, 0, :, :].unsqueeze(1).to(self.device, dtype=torch.float)
@@ -703,6 +743,7 @@ class CycleGAN(object):
         classify_model.continue_from_latest_checkpoint()
 
         classifier = classify_model.classifier
+        classifier.eval()
 
         ######################
         # Dataset
@@ -715,6 +756,10 @@ class CycleGAN(object):
             dataset = SteelyDataset(self.opt.genreA, self.opt.genreB, 'test', use_mix=True)
 
         dataset_size = len(dataset)
+        batch_size = 32
+
+        iter_num = int(dataset_size / batch_size)
+
         # loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=True)
         self.logger.info(
             f'Dataset loaded, genreA: {self.opt.genreA}, genreB: {self.opt.genreB}, total size: {dataset_size}.')
@@ -733,8 +778,6 @@ class CycleGAN(object):
         # Test
         ######################
 
-        batch_size = 200
-
         accuracy_A = []
         accuracy_fake_B = []
         accuracy_cycle_A = []
@@ -743,7 +786,15 @@ class CycleGAN(object):
         accuracy_fake_A = []
         accuracy_cycle_B = []
 
-        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=1, drop_last=False)
+        temp_fake_A_path = '../data/classified_midi/fake_A.mid'
+        temp_fake_B_path = '../data/classified_midi/fake_B.mid'
+        temp_cycle_A_path = '../data/classified_midi/cycle_A.mid'
+        temp_cycle_B_path = '../data/classified_midi/cycle_A.mid'
+
+        self.generator_A2B.eval()
+        self.generator_B2A.eval()
+
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=True)
         for i, data in enumerate(loader):
             data_A = torch.unsqueeze(data[:, 0, :, :], 1).to(self.device, dtype=torch.float)
             data_B = torch.unsqueeze(data[:, 1, :, :], 1).to(self.device, dtype=torch.float)
@@ -753,9 +804,22 @@ class CycleGAN(object):
             label_A = torch.from_numpy(label_A).view(-1, 2).to(self.device, dtype=torch.float)
             label_B = torch.from_numpy(label_B).view(-1, 2).to(self.device, dtype=torch.float)
 
+
             with torch.no_grad():
+
                 fake_B = self.generator_A2B(data_A)
                 cycle_A = self.generator_B2A(fake_B)
+
+                '''
+                save_midis(fake_B.cpu().detach().numpy(), temp_fake_B_path)
+                save_midis(cycle_A.cpu().detach().numpy(), temp_cycle_A_path)
+
+                fake_B = np.expand_dims(generate_data_from_midi(temp_fake_B_path, batch_size), 1)
+                cycle_A = np.expand_dims(generate_data_from_midi(temp_cycle_A_path, batch_size), 1)
+
+                fake_B = torch.from_numpy(fake_B.copy()).to(device='cuda',  dtype=torch.float)
+                cycle_A = torch.from_numpy(cycle_A.copy()).to(device='cuda',  dtype=torch.float)
+                '''
 
                 classify_A = classifier(data_A)
                 classify_fake_B = classifier(fake_B)
@@ -775,6 +839,17 @@ class CycleGAN(object):
                 fake_A = self.generator_B2A(data_B)
                 cycle_B = self.generator_A2B(fake_A)
 
+                '''
+                save_midis(fake_A.cpu().detach().numpy(), temp_fake_A_path)
+                save_midis(cycle_B.cpu().detach().numpy(), temp_cycle_B_path)
+
+                fake_A = np.expand_dims(generate_data_from_midi(temp_fake_A_path, batch_size), 1)
+                cycle_B = np.expand_dims(generate_data_from_midi(temp_cycle_B_path, batch_size), 1)
+
+                fake_A = torch.from_numpy(fake_A.copy()).to(device='cuda',  dtype=torch.float)
+                cycle_B = torch.from_numpy(cycle_B.copy()).to(device='cuda',  dtype=torch.float)
+                '''
+
                 classify_B = classifier(data_B)
                 classify_fake_A = classifier(fake_A)
                 classify_cycle_B = classifier(cycle_B)
@@ -788,6 +863,8 @@ class CycleGAN(object):
                 accuracy_cycle_B.append(torch.mean(torch.argmax(
                     nn.functional.softmax(classify_cycle_B, dim=1), 1).eq(torch.argmax(label_B, 1)).type(
                     torch.float32)).cpu().float())
+
+            # self.logger.info('Progress: {:.2%}\n'.format(i / iter_num))
 
         print(f'Original_A acc: {np.mean(accuracy_A)}, Original_B acc: {np.mean(accuracy_B)}\n'
               f'Fake_A acc: {np.mean(accuracy_fake_A)}, Fake_B acc: {np.mean(accuracy_fake_B)}\n'
@@ -810,20 +887,24 @@ def load_model_test():
 
 
 def train():
-    continue_train = False
+    continue_train = True
     device = 'GPU'
-    opt = CyganConfig('SMGT', 2, continue_train)
-    cyclegan = CycleGAN(opt, device)
+    opt = CyganConfig('steely_gan', 1, continue_train)
+    cyclegan = CycleGAN(opt,
+                        device)
     cyclegan.train()
 
 
 def test():
     continue_train = False
     device = 'GPU'
-    opt = CyganConfig('steely_gan', 2, continue_train)
-    cyclegan = CycleGAN(opt, device)
-    cyclegan.test_by_using_classifier()
+
+    for group in range(1, 4):
+        for model in ['steely_gan', 'SMGT']:
+            opt = CyganConfig(model, group, continue_train)
+            cyclegan = CycleGAN(opt, device)
+            cyclegan.test_by_using_classifier()
 
 
 if __name__ == '__main__':
-    train()
+    test()

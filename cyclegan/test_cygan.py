@@ -61,10 +61,11 @@ def test_sample_song_old():
 def test_whole_song(model_name, ):
     test_dict = [
         {
-            'performer': 'Green Day',
-            'song': "Basket Case",
+            'performer': 'Sex Pistols',
+            'song': "Anarchy In The Uk",
             'genre': 'punk',
-            'path': '../data/original_midi/Basket Case - Green Day.mid',
+            # 'path': '../data/original_midi/Basket Case - Green Day.mid',
+            'path': '../data/original_midi/Anarchy In The Uk - Sex Pistols.mid',
             'direction': 'AtoB',
             'group': 2
         },
@@ -77,12 +78,10 @@ def test_whole_song(model_name, ):
             'direction': 'BtoA',
             'group': 2
         },
-
         {
-            'performer': 'Nirvana',
-            'song': 'In Bloom',
-            'genre': 'rock',
-            'path': '../data/original_midi/In Bloom - Nirvana.mid',
+            'performer': 'AC DC',
+            'song': 'Back In Black',
+            'path': '../data/original_midi/Back In Black - AC DC.mid',
             'direction': 'AtoB',
             'group': 3
         },
@@ -112,6 +111,8 @@ def test_whole_song(model_name, ):
 
         direction = test_info['direction']
 
+        cyclegan.generator_A2B.eval()
+        cyclegan.generator_B2A.eval()
         if direction == 'AtoB':
             transformed_data = cyclegan.generator_A2B(torch.from_numpy(ori_data.copy()).to(
                     device='cuda',  dtype=torch.float)).cpu().detach().numpy()
@@ -120,6 +121,7 @@ def test_whole_song(model_name, ):
                     device='cuda', dtype=torch.float)).cpu().detach().numpy()
 
         save_midis(transformed_data, transformed_path)
+        save_midis(ori_data, original_path)
 
 
 def test_lr():
@@ -135,5 +137,5 @@ def test_lr():
 
 
 if __name__ == '__main__':
-    model_name = 'steely_gan'
-    test_whole_song(model_name)
+    for model_name in ['steely_gan', 'SMGT']:
+        test_whole_song(model_name)

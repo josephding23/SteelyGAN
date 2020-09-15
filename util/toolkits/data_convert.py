@@ -61,7 +61,6 @@ def save_midis(bars, path):
                                   np.zeros((bars.shape[0], bars.shape[1], bars.shape[2], 20))),
                                  axis=3)
     padded_bars = padded_bars.reshape((-1, padded_bars.shape[1], padded_bars.shape[2], padded_bars.shape[3]))
-    print(padded_bars.shape)
     padded_bars_list = []
     for ch_idx in range(padded_bars.shape[1]):
         padded_bars_list.append(padded_bars[:, ch_idx, :, :].reshape(padded_bars.shape[0],
@@ -72,7 +71,6 @@ def save_midis(bars, path):
     pianoroll = pianoroll.reshape((pianoroll.shape[0] * pianoroll.shape[1], pianoroll.shape[2]))
     pianoroll_diff = np.concatenate((np.zeros((1, 128), dtype=int), pianoroll, np.zeros((1, 128), dtype=int)))
     pianoroll_search = np.diff(pianoroll_diff.astype(int), axis=0)
-    print(pianoroll_search.shape)
 
     instrument = pretty_midi.Instrument(program=0, is_drum=False, name='Instr')
 

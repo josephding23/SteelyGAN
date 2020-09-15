@@ -46,9 +46,10 @@ class Classify(object):
                                          betas=(self.opt.beta1, self.opt.beta2),
                                          weight_decay=self.opt.weight_decay)
 
-        # self.classifier_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.classifier_optimizer, T_0=2, T_mult=2, eta_min=4e-08)
-        self.classifier_scheduler = lr_scheduler.MultiStepLR(self.classifier_optimizer,
-                                                             milestones=[20, 25, 30, 45], gamma=0.5)
+        self.classifier_scheduler = lr_scheduler.CosineAnnealingWarmRestarts(self.classifier_optimizer, T_0=1, T_mult=2,
+                                                                             eta_min=4e-08)
+        # self.classifier_scheduler = lr_scheduler.MultiStepLR(self.classifier_optimizer,
+        #                                                      milestones=[20, 25, 30, 45], gamma=0.5)
 
     def save_model(self, epoch):
         classifier_filename = f'C_{self.opt.genreA}_{self.opt.genreB}_{epoch}.pth'
@@ -146,7 +147,8 @@ class Classify(object):
 
         test_data = torch.from_numpy(test_dataset.get_data()).to(self.device, dtype=torch.float)
 
-        gaussian_noise = torch.normal(mean=torch.zeros(test_data.shape), std=self.opt.gaussian_std).to(self.device, dtype=torch.float)
+        # gaussian_noise = torch.abs(
+        # torch.normal(mean=torch.zeros(test_data.shape), std=self.opt.gaussian_std)).to(self.device, dtype=torch.float)
         # test_data += gaussian_noise
 
         real_test_label = torch.from_numpy(test_dataset.get_labels()).view(-1, 2).to(self.device, dtype=torch.float)
@@ -192,7 +194,8 @@ class Classify(object):
 
 
 def train():
-    genre_group = 1
+    genre_group = 3
+
     continue_training = False
     opt = ClassifierConfig(genre_group, continue_training)
     classifiy = Classify(opt, 'gpu')
