@@ -17,6 +17,7 @@ sys.path.append("/home/dl/dzx/SteelyGAN")
 
 from networks.musegan import GANLoss
 import networks.SteelyGAN as SteelyGAN
+import networks.SteelyGAN_v2 as SteelyGAN_v2
 import networks.SMGT as SMGT
 from networks.SteelyGAN import Discriminator, Generator
 
@@ -29,6 +30,7 @@ from steely_util.toolkits.data_convert import generate_midi_segment_from_tensor,
     generate_whole_midi_from_tensor
 from steely_util.image_pool import ImagePool
 from util.toolkits.data_convert import save_midis
+from util.analysis.benchmarks import ratio_of_empty_bars, number_of_used_pitch_classses_per_bar, in_scale_notes_ratio
 
 import logging
 import colorlog
@@ -71,6 +73,21 @@ class CycleGAN(object):
             if self.opt.model != 'base':
                 self.discriminator_A_all = SteelyGAN.Discriminator()
                 self.discriminator_B_all = SteelyGAN.Discriminator()
+
+        elif self.opt.name == 'steely_gan_v2':
+
+            self.generator_A2B = SteelyGAN_v2.Generator(self.opt.bat_unit_eta)
+            self.generator_B2A = SteelyGAN_v2.Generator(self.opt.bat_unit_eta)
+
+            self.discriminator_A = SteelyGAN_v2.Discriminator()
+            self.discriminator_B = SteelyGAN_v2.Discriminator()
+
+            self.discriminator_A_all = None
+            self.discriminator_B_all = None
+
+            if self.opt.model != 'base':
+                self.discriminator_A_all = SteelyGAN_v2.Discriminator()
+                self.discriminator_B_all = SteelyGAN_v2.Discriminator()
 
         else:
             self.generator_A2B = SMGT.Generator()
@@ -144,7 +161,7 @@ class CycleGAN(object):
         for file in file_list:
             if len(re.findall(pattern, file)) != 0:
                 files.append(re.findall(pattern, file)[0])
-        epoch_list = sorted([int(re.findall(r'\d+', file)[0]) for file in files])
+        epoch_list = sorted([int(re.findall(r'_\d+_', file)[0][1:-1]) for file in files])
         if len(epoch_list) == 0:
             raise CyganException('No model to load.')
         latest_num = epoch_list[-1]
@@ -658,41 +675,20 @@ class CycleGAN(object):
                 json.dump(losses_dict, f)
             '''
 
-    def test_by_generating_music(self):
+    def test_by_benchmarks(self):
         torch.cuda.empty_cache()
 
-        ######################
-        # Save paths
-        ######################
-
-        os.makedirs(self.opt.test_save_path, exist_ok=True)
-        npy_save_dir = self.opt.test_save_path + '/npy'
-        midi_save_dir = self.opt.test_save_path + '/midi'
-
-        '''
-        os.makedirs(npy_save_dir, exist_ok=True)
-        os.makedirs(npy_save_dir + '/origin', exist_ok=True)
-        os.makedirs(npy_save_dir + '/transfer', exist_ok=True)
-        os.makedirs(npy_save_dir + '/cycle', exist_ok=True)
-        '''
-
-        os.makedirs(midi_save_dir, exist_ok=True)
-        os.makedirs(midi_save_dir + '/origin', exist_ok=True)
-        os.makedirs(midi_save_dir + '/transfer', exist_ok=True)
-        os.makedirs(midi_save_dir + '/cycle', exist_ok=True)
-
-        ######################
-        # Dataset
-        ######################
-
         if self.opt.model == 'base':
-            dataset = SteelyDataset(self.opt.genreA, self.opt.genreB, self.opt.phase, use_mix=False)
+            dataset = SteelyDataset(self.opt.genreA, self.opt.genreB, 'test', use_mix=False)
 
         else:
-            dataset = SteelyDataset(self.opt.genreA, self.opt.genreB, self.opt.phase, use_mix=True)
+            dataset = SteelyDataset(self.opt.genreA, self.opt.genreB, 'test', use_mix=True)
 
         dataset_size = len(dataset)
-        loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=True)
+        batch_size = 32
+
+        iter_num = int(dataset_size / batch_size)
+
         self.logger.info(
             f'Dataset loaded, genreA: {self.opt.genreA}, genreB: {self.opt.genreB}, total size: {dataset_size}.')
 
@@ -710,26 +706,108 @@ class CycleGAN(object):
         # Test
         ######################
 
+        benchmarks_info = {
+            'A': {
+                'eb': [],
+                'upc': [],
+                'in_scale': []
+            },
+            'fake_B': {
+                'eb': [],
+                'upc': [],
+                'in_scale': []
+            },
+            'cycle_A': {
+                'eb': [],
+                'upc': [],
+                'in_scale': []
+            },
+            'B': {
+                'eb': [],
+                'upc': [],
+                'in_scale': []
+            },
+            'fake_A': {
+                'eb': [],
+                'upc': [],
+                'in_scale': []
+            },
+            'cycle_B': {
+                'eb': [],
+                'upc': [],
+                'in_scale': []
+            }
+        }
+
+        temp_A_path = '../data/benchmarked_midi/A.mid'
+        temp_B_path = '../data/benchmarked_midi/B.mid'
+        temp_fake_A_path = '../data/benchmarked_midi/fake_A.mid'
+        temp_fake_B_path = '../data/benchmarked_midi/fake_B.mid'
+        temp_cycle_A_path = '../data/benchmarked_midi/cycle_A.mid'
+        temp_cycle_B_path = '../data/benchmarked_midi/cycle_B.mid'
+
         self.generator_A2B.eval()
         self.generator_B2A.eval()
 
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=True)
         for i, data in enumerate(loader):
-            if self.opt.direction == 'AtoB':
-                origin = data[:, 0, :, :].unsqueeze(1).to(self.device, dtype=torch.float)
-                transfer = self.generator_A2B(origin)
-                cycle = self.generator_B2A(transfer)
+            data_A = torch.unsqueeze(data[:, 0, :, :], 1).to(self.device, dtype=torch.float)
+            data_B = torch.unsqueeze(data[:, 1, :, :], 1).to(self.device, dtype=torch.float)
 
-            else:
-                origin = torch.unsqueeze(data[:, 1, :, :], 1).to(self.device, dtype=torch.float)
-                transfer = self.generator_B2A(origin)
-                cycle = self.generator_A2B(transfer)
+            label_A = np.array([[1.0, 0.0] for _ in range(data_A.shape[0])])
+            label_B = np.array([[0.0, 1.0] for _ in range(data_B.shape[0])])
+            label_A = torch.from_numpy(label_A).view(-1, 2).to(self.device, dtype=torch.float)
+            label_B = torch.from_numpy(label_B).view(-1, 2).to(self.device, dtype=torch.float)
 
-            generate_midi_segment_from_tensor(origin.cpu().detach().numpy()[0, 0, :, :],
-                                              midi_save_dir + '/origin/' + str(i + 1) + '.mid')
-            generate_midi_segment_from_tensor(transfer.cpu().detach().numpy()[0, 0, :, :],
-                                              midi_save_dir + '/transfer/' + str(i + 1) + '.mid')
-            generate_midi_segment_from_tensor(cycle.cpu().detach().numpy()[0, 0, :, :],
-                                              midi_save_dir + '/cycle/' + str(i + 1) + '.mid')
+            with torch.no_grad():
+                fake_B = self.generator_A2B(data_A)
+                cycle_A = self.generator_B2A(fake_B)
+
+                save_midis(data_A.cpu().detach().numpy(), temp_A_path)
+                save_midis(fake_B.cpu().detach().numpy(), temp_fake_B_path)
+                save_midis(cycle_A.cpu().detach().numpy(), temp_cycle_A_path)
+
+                benchmarks_info['A']['eb'].append(ratio_of_empty_bars(temp_A_path))
+                benchmarks_info['fake_B']['eb'].append(ratio_of_empty_bars(temp_fake_B_path))
+                benchmarks_info['cycle_A']['eb'].append(ratio_of_empty_bars(temp_cycle_A_path))
+
+                benchmarks_info['A']['upc'].append(number_of_used_pitch_classses_per_bar(temp_A_path))
+                benchmarks_info['fake_B']['upc'].append(number_of_used_pitch_classses_per_bar(temp_fake_B_path))
+                benchmarks_info['cycle_A']['upc'].append(number_of_used_pitch_classses_per_bar(temp_cycle_A_path))
+
+                benchmarks_info['A']['in_scale'].append(in_scale_notes_ratio(temp_A_path))
+                benchmarks_info['fake_B']['in_scale'].append(in_scale_notes_ratio(temp_fake_B_path))
+                benchmarks_info['cycle_A']['in_scale'].append(in_scale_notes_ratio(temp_cycle_A_path))
+
+
+            with torch.no_grad():
+                fake_A = self.generator_B2A(data_B)
+                cycle_B = self.generator_A2B(fake_A)
+
+                save_midis(data_B.cpu().detach().numpy(), temp_B_path)
+                save_midis(fake_A.cpu().detach().numpy(), temp_fake_A_path)
+                save_midis(cycle_B.cpu().detach().numpy(), temp_cycle_B_path)
+
+                benchmarks_info['B']['eb'].append(ratio_of_empty_bars(temp_B_path))
+                benchmarks_info['fake_A']['eb'].append(ratio_of_empty_bars(temp_fake_A_path))
+                benchmarks_info['cycle_B']['eb'].append(ratio_of_empty_bars(temp_cycle_B_path))
+
+                benchmarks_info['B']['upc'].append(number_of_used_pitch_classses_per_bar(temp_B_path))
+                benchmarks_info['fake_A']['upc'].append(number_of_used_pitch_classses_per_bar(temp_fake_A_path))
+                benchmarks_info['cycle_B']['upc'].append(number_of_used_pitch_classses_per_bar(temp_cycle_B_path))
+
+                benchmarks_info['B']['in_scale'].append(in_scale_notes_ratio(temp_B_path))
+                benchmarks_info['fake_A']['in_scale'].append(in_scale_notes_ratio(temp_fake_A_path))
+                benchmarks_info['cycle_B']['in_scale'].append(in_scale_notes_ratio(temp_cycle_B_path))
+
+        for data_type in ['A', 'B', 'fake_B', 'fake_A', 'cycle_A', 'cycle_B']:
+            for bm in ['eb', 'upc', 'in_scale']:
+                benchmarks_info[data_type][bm] = np.mean(benchmarks_info[data_type][bm])
+
+        print(self.opt.name)
+        print(benchmarks_info)
+
+
 
     def test_by_using_classifier(self):
         torch.cuda.empty_cache()
@@ -808,18 +886,14 @@ class CycleGAN(object):
             with torch.no_grad():
 
                 fake_B = self.generator_A2B(data_A)
+                # save_midis(fake_B.cpu().detach().numpy(), temp_fake_B_path)
+                # fake_B = np.expand_dims(generate_data_from_midi(temp_fake_B_path, batch_size), 1)
+                # fake_B = torch.from_numpy(fake_B).to(device='cuda',  dtype=torch.float)
+
                 cycle_A = self.generator_B2A(fake_B)
-
-                '''
-                save_midis(fake_B.cpu().detach().numpy(), temp_fake_B_path)
-                save_midis(cycle_A.cpu().detach().numpy(), temp_cycle_A_path)
-
-                fake_B = np.expand_dims(generate_data_from_midi(temp_fake_B_path, batch_size), 1)
-                cycle_A = np.expand_dims(generate_data_from_midi(temp_cycle_A_path, batch_size), 1)
-
-                fake_B = torch.from_numpy(fake_B.copy()).to(device='cuda',  dtype=torch.float)
-                cycle_A = torch.from_numpy(cycle_A.copy()).to(device='cuda',  dtype=torch.float)
-                '''
+                # save_midis(cycle_A.cpu().detach().numpy(), temp_cycle_A_path)
+                # cycle_A = np.expand_dims(generate_data_from_midi(temp_cycle_A_path, batch_size), 1)
+                # cycle_A = torch.from_numpy(cycle_A).to(device='cuda',  dtype=torch.float)
 
                 classify_A = classifier(data_A)
                 classify_fake_B = classifier(fake_B)
@@ -837,18 +911,14 @@ class CycleGAN(object):
 
             with torch.no_grad():
                 fake_A = self.generator_B2A(data_B)
+                # save_midis(fake_A.cpu().detach().numpy(), temp_fake_A_path)
+                # fake_A = np.expand_dims(generate_data_from_midi(temp_fake_A_path, batch_size), 1)
+                # fake_A = torch.from_numpy(fake_A.copy()).to(device='cuda',  dtype=torch.float)
+
                 cycle_B = self.generator_A2B(fake_A)
-
-                '''
-                save_midis(fake_A.cpu().detach().numpy(), temp_fake_A_path)
-                save_midis(cycle_B.cpu().detach().numpy(), temp_cycle_B_path)
-
-                fake_A = np.expand_dims(generate_data_from_midi(temp_fake_A_path, batch_size), 1)
-                cycle_B = np.expand_dims(generate_data_from_midi(temp_cycle_B_path, batch_size), 1)
-
-                fake_A = torch.from_numpy(fake_A.copy()).to(device='cuda',  dtype=torch.float)
-                cycle_B = torch.from_numpy(cycle_B.copy()).to(device='cuda',  dtype=torch.float)
-                '''
+                # save_midis(cycle_B.cpu().detach().numpy(), temp_cycle_B_path)
+                # cycle_B = np.expand_dims(generate_data_from_midi(temp_cycle_B_path, batch_size), 1)
+                # cycle_B = torch.from_numpy(cycle_B.copy()).to(device='cuda',  dtype=torch.float)
 
                 classify_B = classifier(data_B)
                 classify_fake_A = classifier(fake_A)
@@ -867,7 +937,7 @@ class CycleGAN(object):
             # self.logger.info('Progress: {:.2%}\n'.format(i / iter_num))
 
         print(f'Original_A acc: {np.mean(accuracy_A)}, Original_B acc: {np.mean(accuracy_B)}\n'
-              f'Fake_A acc: {np.mean(accuracy_fake_A)}, Fake_B acc: {np.mean(accuracy_fake_B)}\n'
+              f'Fake_B acc: {np.mean(accuracy_fake_B)}, Fake_A acc: {np.mean(accuracy_fake_A)}\n'
               f'Cycle_A acc: {np.mean(accuracy_cycle_A)}, Cycle_B acc: {np.mean(accuracy_cycle_B)}\n')
 
 
@@ -889,7 +959,7 @@ def load_model_test():
 def train():
     continue_train = True
     device = 'GPU'
-    opt = CyganConfig('steely_gan', 1, continue_train)
+    opt = CyganConfig('steely_gan_v2', 1, continue_train)
     cyclegan = CycleGAN(opt,
                         device)
     cyclegan.train()
@@ -899,12 +969,13 @@ def test():
     continue_train = False
     device = 'GPU'
 
-    for group in range(1, 4):
-        for model in ['steely_gan', 'SMGT']:
+    for group in [1]:
+        for model in ['steely_gan_v2', 'SMGT']:
             opt = CyganConfig(model, group, continue_train)
             cyclegan = CycleGAN(opt, device)
             cyclegan.test_by_using_classifier()
+            # cyclegasn.test_by_benchmarks()
 
 
 if __name__ == '__main__':
-    test()
+    train()

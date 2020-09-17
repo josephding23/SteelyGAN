@@ -8,7 +8,7 @@ class CyganConfig(object):
         # Info
 
         self.name = name
-        assert self.name in ['steely_gan', 'SMGT']
+        assert self.name in ['steely_gan', 'steely_gan_v2', 'SMGT']
 
         self.dataset_name = 'free_midi_library'
 
@@ -79,8 +79,8 @@ class CyganConfig(object):
 
         self.no_flip = True
         self.num_threads = 0
-        self.batch_size = 8
-        self.max_epoch = 40
+        self.batch_size = 16
+        self.max_epoch = 30
         self.epoch_step = 5
 
         self.data_shape = (self.batch_size, 1, 64, 84)

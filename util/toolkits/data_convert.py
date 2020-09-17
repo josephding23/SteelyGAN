@@ -80,7 +80,6 @@ def save_midis(bars, path):
     tpp = 60.0 / tempo / float(beat_resolution)
     threshold = 60.0 / tempo / 4
     phrase_end_time = 60.0 / tempo * 4 * pianoroll.shape[0]
-
     for note_num in range(128):
         start_idx = (pianoroll_search[:, note_num] > 0).nonzero()
         start_time = list(tpp * (start_idx[0].astype(float)))

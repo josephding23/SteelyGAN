@@ -9,8 +9,8 @@ def plot_data(data):
     sample_data = data
     dataX = []
     dataY = []
-    for time in range(64):
-        for pitch in range(84):
+    for time in range(data.shape[0]):
+        for pitch in range(data.shape[1]):
             if sample_data[time][pitch] > 0.5:
                 dataX.append(time)
                 dataY.append(pitch)
@@ -193,6 +193,31 @@ def generate_data_from_midi(path, segment_num):
                     for time_raw in range(start, end):
                         segment = int(time_raw / 64)
                         time = time_raw % 64
+                        data[(segment, time, pitch)] = 1.0
+    return data
+
+
+def get_bar_info_from_midi(path):
+    pm = pretty_midi.PrettyMIDI(path)
+    note_range = (24, 108)
+    bar_num = math.ceil(pm.get_end_time() / 2)
+    data = np.zeros(shape=(bar_num, 16, 84), dtype=np.float)
+
+    # data = np.zeros((segment_num, 64, 84), np.bool_)
+    quarter_length = 60 / 120 / 4
+    for instr in pm.instruments:
+        if not instr.is_drum:
+            for note in instr.notes:
+                start = int(round(note.start / quarter_length))
+                end = int(round(note.end / quarter_length))
+                pitch = note.pitch
+                if pitch < note_range[0] or pitch >= note_range[1]:
+                    continue
+                else:
+                    pitch -= 24
+                    for time_raw in range(start, end):
+                        segment = int(time_raw / 16)
+                        time = time_raw % 16
                         data[(segment, time, pitch)] = 1.0
     return data
 
